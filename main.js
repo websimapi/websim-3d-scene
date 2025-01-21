@@ -12,6 +12,11 @@ class App {
     this.setupControls();
     this.addObjects();
     this.animate();
+
+    // Add a timeout to hide loading screen even if HDR fails
+    setTimeout(() => {
+      document.getElementById('loading').classList.add('hidden');
+    }, 5000);
   }
 
   init() {
@@ -45,26 +50,53 @@ class App {
   }
 
   setupScene() {
-    // Load HDR environment map
+    // Set a default background color first
+    this.scene.background = new THREE.Color(0x333333);
+    
+    // Load HDR environment map with error handling
     new RGBELoader()
       .setPath('https://threejs.org/examples/textures/equirectangular/')
-      .load('venice_sunset_1k.hdr', (texture) => {
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        this.scene.background = texture;
-        this.scene.environment = texture;
-        
-        document.getElementById('loading').classList.add('hidden');
-      });
+      .load(
+        'venice_sunset_1k.hdr', 
+        (texture) => {
+          texture.mapping = THREE.EquirectangularReflectionMapping;
+          this.scene.background = texture;
+          this.scene.environment = texture;
+          document.getElementById('loading').classList.add('hidden');
+        },
+        // Progress callback
+        (xhr) => {
+          const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
+          document.getElementById('loading').textContent = `Loading... ${percent}%`;
+        },
+        // Error callback
+        (error) => {
+          console.error('Error loading HDR:', error);
+          // Hide loading screen and continue without HDR
+          document.getElementById('loading').classList.add('hidden');
+          
+          // Set up basic environment lighting as fallback
+          const envMap = new THREE.CubeTextureLoader()
+            .setPath('https://threejs.org/examples/textures/cube/Bridge2/')
+            .load(['posx.jpg', 'negx.jpg', 'posy.jpg', 'negy.jpg', 'posz.jpg', 'negz.jpg']);
+          this.scene.environment = envMap;
+        }
+      );
   }
 
   setupLights() {
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    // Enhance default lighting for better fallback
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     this.scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
     directionalLight.position.set(5, 5, 5);
     directionalLight.castShadow = true;
     this.scene.add(directionalLight);
+
+    // Add hemisphere light for better ambient lighting
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+    this.scene.add(hemiLight);
   }
 
   setupControls() {
@@ -139,4 +171,6 @@ class App {
 }
 
 // Start the application
-new App();
+window.addEventListener('DOMContentLoaded', () => {
+  new App();
+});
